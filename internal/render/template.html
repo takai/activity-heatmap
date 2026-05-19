@@ -10,6 +10,43 @@
   .meta { color: #555; font-size: .9rem; }
   .meta div { margin: .15rem 0; }
   #chart { width: 100%; height: 520px; }
+
+  .filter { margin: 1rem 0 1.25rem; }
+  .filter .label-row { display: flex; justify-content: space-between; font-size: .85rem; color: #555; margin-bottom: .35rem; }
+  .filter .range-row { position: relative; height: 36px; }
+  .filter input[type=range] {
+    position: absolute; inset: 0; width: 100%; margin: 0;
+    background: transparent; -webkit-appearance: none; appearance: none;
+    pointer-events: none;
+  }
+  .filter input[type=range]::-webkit-slider-runnable-track { height: 4px; background: transparent; }
+  .filter input[type=range]::-moz-range-track { height: 4px; background: transparent; }
+  .filter input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #1f77b4; border: 2px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,.4);
+    pointer-events: auto; cursor: pointer; margin-top: -7px;
+  }
+  .filter input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #1f77b4; border: 2px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,.4);
+    pointer-events: auto; cursor: pointer;
+  }
+  .filter .track {
+    position: absolute; left: 0; right: 0; top: 50%; height: 4px;
+    background: #ddd; border-radius: 2px; transform: translateY(-50%);
+  }
+  .filter .track .fill {
+    position: absolute; top: 0; bottom: 0; background: #1f77b4; border-radius: 2px;
+  }
+  .filter .presets { margin-top: .6rem; display: flex; gap: .4rem; flex-wrap: wrap; }
+  .filter .presets button {
+    font: inherit; font-size: .85rem;
+    padding: .25rem .6rem; border: 1px solid #ccc; background: #fff;
+    border-radius: 4px; cursor: pointer;
+  }
+  .filter .presets button:hover { background: #f3f3f3; }
+  .filter .summary { margin-top: .4rem; font-size: .85rem; color: #333; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 </head>
@@ -23,37 +60,145 @@
     <div>Generated at: {{.GeneratedAt}}</div>
   </div>
 </header>
+
+<div class="filter" id="filter" hidden>
+  <div class="label-row">
+    <span id="fromLabel"></span>
+    <span id="toLabel"></span>
+  </div>
+  <div class="range-row">
+    <div class="track"><div class="fill" id="trackFill"></div></div>
+    <input type="range" id="fromRange" min="0" max="0" value="0">
+    <input type="range" id="toRange"   min="0" max="0" value="0">
+  </div>
+  <div class="presets">
+    <button data-days="30">直近1か月</button>
+    <button data-days="90">直近3か月</button>
+    <button data-days="180">直近6か月</button>
+    <button data-days="365">直近1年</button>
+    <button data-days="all">全期間</button>
+  </div>
+  <div class="summary" id="summary"></div>
+</div>
+
 <div id="chart"></div>
+
 <script>
   const DATA = {{.DataJSON}};
-  const hours = Array.from({length: 24}, (_, i) => String(i));
   const weekdays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const wdIndex = Object.fromEntries(weekdays.map((w, i) => [w, i]));
-  let max = 0;
-  const series = DATA.heatmap.map(c => {
-    if (c.count > max) max = c.count;
-    return [c.hour, wdIndex[c.weekday], c.count];
-  });
+  const hours = Array.from({length: 24}, (_, i) => String(i));
   const chart = echarts.init(document.getElementById("chart"));
-  chart.setOption({
-    tooltip: {
-      position: "top",
-      formatter: p => `${weekdays[p.value[1]]} ${p.value[0]}:00 — ${p.value[2]} stream(s)`
-    },
-    grid: { left: 60, right: 30, top: 20, bottom: 60 },
-    xAxis: { type: "category", data: hours, splitArea: { show: true }, name: "Hour" },
-    yAxis: { type: "category", data: weekdays, splitArea: { show: true }, name: "Weekday" },
-    visualMap: {
-      min: 0, max: Math.max(max, 1),
-      calculable: true, orient: "horizontal", left: "center", bottom: 10
-    },
-    series: [{
-      type: "heatmap", data: series,
-      label: { show: true, formatter: p => p.value[2] || "" },
-      emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(0,0,0,0.4)" } }
-    }]
-  });
+
+  const streams = (DATA.streams || []).map(s => new Date(s)).filter(d => !isNaN(d));
+  streams.sort((a, b) => a - b);
+
+  function weekdayIndex(d) { return (d.getDay() + 6) % 7; } // Mon=0..Sun=6
+
+  function buildCells(filtered) {
+    const counts = Array.from({length: 7}, () => new Array(24).fill(0));
+    for (const d of filtered) counts[weekdayIndex(d)][d.getHours()]++;
+    let max = 0;
+    const series = [];
+    for (let w = 0; w < 7; w++) {
+      for (let h = 0; h < 24; h++) {
+        const c = counts[w][h];
+        if (c > max) max = c;
+        series.push([h, w, c]);
+      }
+    }
+    return { series, max };
+  }
+
+  function render(filtered) {
+    const { series, max } = buildCells(filtered);
+    chart.setOption({
+      tooltip: {
+        position: "top",
+        formatter: p => `${weekdays[p.value[1]]} ${p.value[0]}:00 — ${p.value[2]} stream(s)`
+      },
+      grid: { left: 60, right: 30, top: 20, bottom: 60 },
+      xAxis: { type: "category", data: hours, splitArea: { show: true }, name: "Hour" },
+      yAxis: { type: "category", data: weekdays, splitArea: { show: true }, name: "Weekday" },
+      visualMap: {
+        min: 0, max: Math.max(max, 1),
+        calculable: true, orient: "horizontal", left: "center", bottom: 10
+      },
+      series: [{
+        type: "heatmap", data: series,
+        label: { show: true, formatter: p => p.value[2] || "" },
+        emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(0,0,0,0.4)" } }
+      }]
+    });
+  }
+
+  render(streams);
   window.addEventListener("resize", () => chart.resize());
+
+  if (streams.length >= 2) {
+    const filter = document.getElementById("filter");
+    filter.hidden = false;
+
+    const DAY = 24 * 3600 * 1000;
+    const startDay = new Date(streams[0]); startDay.setHours(0,0,0,0);
+    const endDay   = new Date(streams[streams.length - 1]); endDay.setHours(0,0,0,0);
+    const totalDays = Math.max(1, Math.round((endDay - startDay) / DAY));
+
+    const fromRange = document.getElementById("fromRange");
+    const toRange   = document.getElementById("toRange");
+    const fromLabel = document.getElementById("fromLabel");
+    const toLabel   = document.getElementById("toLabel");
+    const summary   = document.getElementById("summary");
+    const trackFill = document.getElementById("trackFill");
+
+    fromRange.min = toRange.min = 0;
+    fromRange.max = toRange.max = totalDays;
+    fromRange.value = 0;
+    toRange.value = totalDays;
+
+    function dayOffsetToDate(off, endOfDay) {
+      const d = new Date(startDay);
+      d.setDate(d.getDate() + off);
+      if (endOfDay) d.setHours(23, 59, 59, 999);
+      return d;
+    }
+    const fmt = d => d.toISOString().slice(0, 10);
+
+    function apply() {
+      let f = +fromRange.value, t = +toRange.value;
+      if (f > t) { [f, t] = [t, f]; }
+      const from = dayOffsetToDate(f, false);
+      const to   = dayOffsetToDate(t, true);
+      const filtered = streams.filter(d => d >= from && d <= to);
+      fromLabel.textContent = fmt(from);
+      toLabel.textContent   = fmt(to);
+      summary.textContent   = `表示中: ${filtered.length} 件 / ${streams.length} 件`;
+      const lp = (f / totalDays) * 100;
+      const rp = (t / totalDays) * 100;
+      trackFill.style.left  = Math.min(lp, rp) + "%";
+      trackFill.style.right = (100 - Math.max(lp, rp)) + "%";
+      render(filtered);
+    }
+
+    fromRange.addEventListener("input", apply);
+    toRange.addEventListener("input", apply);
+
+    document.querySelectorAll(".presets button").forEach(b => {
+      b.addEventListener("click", () => {
+        const v = b.dataset.days;
+        if (v === "all") {
+          fromRange.value = 0;
+          toRange.value = totalDays;
+        } else {
+          const days = parseInt(v, 10);
+          fromRange.value = Math.max(0, totalDays - days);
+          toRange.value = totalDays;
+        }
+        apply();
+      });
+    });
+
+    apply();
+  }
 </script>
 </body>
 </html>

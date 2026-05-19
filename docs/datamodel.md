@@ -161,6 +161,10 @@ It is regenerated on every run from `videos.jsonl`.
   "heatmap": [
     { "weekday": "Mon", "hour": 0, "count": 0 },
     { "weekday": "Mon", "hour": 1, "count": 2 }
+  ],
+  "streams": [
+    "2026-01-01T21:03:00+09:00",
+    "2026-01-02T20:58:00+09:00"
   ]
 }
 ```
@@ -184,6 +188,8 @@ It is regenerated on every run from `videos.jsonl`.
 `summary.liveVideos`: integer. Number of records included in heatmap aggregation.
 
 `heatmap`: array. Weekday/hour aggregation cells.
+
+`streams`: array of strings. Live stream start timestamps in the aggregation timezone, sorted ascending. Powers client-side date-range filtering in `heatmap.html`. One entry per record included in heatmap aggregation.
 
 ## Heatmap Cell
 

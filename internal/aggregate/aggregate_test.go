@@ -76,4 +76,12 @@ func TestBuild_CellsAndCounts(t *testing.T) {
 	if df.Timezone != "Asia/Tokyo" {
 		t.Errorf("Timezone = %q, want Asia/Tokyo", df.Timezone)
 	}
+	if len(df.Streams) != 4 {
+		t.Errorf("Streams length = %d, want 4", len(df.Streams))
+	}
+	for i := 1; i < len(df.Streams); i++ {
+		if df.Streams[i].Before(df.Streams[i-1]) {
+			t.Errorf("Streams not sorted ascending at %d: %s before %s", i, df.Streams[i], df.Streams[i-1])
+		}
+	}
 }

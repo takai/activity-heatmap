@@ -47,6 +47,9 @@ type DataFile struct {
 	Channel       DataFileChannel `json:"channel"`
 	Summary       DataFileSummary `json:"summary"`
 	Heatmap       []HeatmapCell   `json:"heatmap"`
+	// Streams is the list of live stream start timestamps in the aggregation
+	// timezone. It powers client-side date-range filtering of the heatmap.
+	Streams []time.Time `json:"streams"`
 }
 
 type DataFileChannel struct {

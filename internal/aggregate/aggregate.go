@@ -2,6 +2,7 @@
 package aggregate
 
 import (
+	"sort"
 	"time"
 
 	"github.com/takai/activity-heatmap/internal/store"
@@ -23,7 +24,7 @@ func Build(ch store.ChannelInfo, videos []store.Video, loc *time.Location, gener
 		counts[i] = make([]int, 24)
 	}
 
-	liveVideos := 0
+	var streams []time.Time
 	for _, v := range videos {
 		if v.LiveStreamingDetails.ActualStartTime == nil {
 			continue
@@ -34,8 +35,10 @@ func Build(ch store.ChannelInfo, videos []store.Video, loc *time.Location, gener
 		}
 		t := v.LiveStreamingDetails.ActualStartTime.In(loc)
 		counts[weekdayIndex(t)][t.Hour()]++
-		liveVideos++
+		streams = append(streams, t)
 	}
+	sort.Slice(streams, func(i, j int) bool { return streams[i].Before(streams[j]) })
+	liveVideos := len(streams)
 
 	cells := make([]store.HeatmapCell, 0, 7*24)
 	for wi, name := range Weekdays {
@@ -67,5 +70,6 @@ func Build(ch store.ChannelInfo, videos []store.Video, loc *time.Location, gener
 			LiveVideos:       liveVideos,
 		},
 		Heatmap: cells,
+		Streams: streams,
 	}
 }
