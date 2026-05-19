@@ -1,4 +1,4 @@
-// Command htd (a.k.a. activity-heatmap) generates a weekday/hour heatmap from a
+// Command activity-heatmap generates a weekday/hour heatmap from a
 // public YouTube channel's live stream archives.
 package main
 

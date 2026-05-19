@@ -6,7 +6,7 @@ pkl = "0.31.1"
 
 [tasks.build]
 description = "Build the app binary"
-run = "go build -o bin/htd ./cmd/htd/"
+run = "go build -o bin/activity-heatmap ./cmd/activity-heatmap/"
 
 [tasks.lint]
 description = "Run golangci-lint"
