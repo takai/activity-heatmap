@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{.Title}} — activity heatmap</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 2rem; color: #222; }
+  header { margin-bottom: 1rem; }
+  h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
+  .meta { color: #555; font-size: .9rem; }
+  .meta div { margin: .15rem 0; }
+  #chart { width: 100%; height: 520px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>{{.Title}}</h1>
+  <div class="meta">
+    <div>Channel: {{.ChannelLabel}}</div>
+    <div>Timezone: {{.Timezone}}</div>
+    <div>Total live streams: {{.LiveVideos}} (of {{.TotalSavedVideos}} saved)</div>
+    <div>Generated at: {{.GeneratedAt}}</div>
+  </div>
+</header>
+<div id="chart"></div>
+<script>
+  const DATA = {{.DataJSON}};
+  const hours = Array.from({length: 24}, (_, i) => String(i));
+  const weekdays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const wdIndex = Object.fromEntries(weekdays.map((w, i) => [w, i]));
+  let max = 0;
+  const series = DATA.heatmap.map(c => {
+    if (c.count > max) max = c.count;
+    return [c.hour, wdIndex[c.weekday], c.count];
+  });
+  const chart = echarts.init(document.getElementById("chart"));
+  chart.setOption({
+    tooltip: {
+      position: "top",
+      formatter: p => `${weekdays[p.value[1]]} ${p.value[0]}:00 — ${p.value[2]} stream(s)`
+    },
+    grid: { left: 60, right: 30, top: 20, bottom: 60 },
+    xAxis: { type: "category", data: hours, splitArea: { show: true }, name: "Hour" },
+    yAxis: { type: "category", data: weekdays, splitArea: { show: true }, name: "Weekday" },
+    visualMap: {
+      min: 0, max: Math.max(max, 1),
+      calculable: true, orient: "horizontal", left: "center", bottom: 10
+    },
+    series: [{
+      type: "heatmap", data: series,
+      label: { show: true, formatter: p => p.value[2] || "" },
+      emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(0,0,0,0.4)" } }
+    }]
+  });
+  window.addEventListener("resize", () => chart.resize());
+</script>
+</body>
+</html>
